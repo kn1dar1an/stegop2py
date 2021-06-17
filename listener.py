@@ -86,7 +86,7 @@ class Listener(Thread):
             raise ListenerConnectException(f"{e}")
 
         self.socket_connected = True
-        print(f"{self.socket} has connected!")
+        print(f"{self.host_addr} has connected!")
 
     def handle_three_way_hs(self, incoming_syn: IP) -> bool:
         """
@@ -116,8 +116,7 @@ class Listener(Thread):
         while True:
             data = self.socket.recv(65566)
             packet = IP(bytes(data))
-            if packet[IP].dst == self.lstn_addr and packet[
-                    TCP].dport == self.lstn_port:
+            if packet[IP].dst == self.lstn_addr and packet[TCP].dport == self.lstn_port:
                 # TCP Seq is always ISN + 1 after 3WHS because no data is being
                 # sent on this socket, other than SYNACKs and ACKs. Host's tcp
                 # seq is now previous value + current payload length. Assigning
