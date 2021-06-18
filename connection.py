@@ -5,7 +5,7 @@ from threading import Thread
 from scapy.all import Raw, StreamSocket, IP, TCP, sr1, send, conf
 
 
-class Listener(Thread):
+class Connection(Thread):
     """ Class that contains the raw socket and handles incoming data.
     Implementation is simple and takes into account very basic error
     handling.
@@ -19,7 +19,7 @@ class Listener(Thread):
             port (int): Port nuber on which to listen to.
             messages_queue (queue.Queue): Queue for storing plain-text messages
         """
-        super(Listener, self).__init__()
+        super(Connection, self).__init__()
         self.lstn_addr = addr
         self.lstn_port = port
         self.messages = messages_queue
@@ -76,7 +76,6 @@ class Listener(Thread):
                     if self.handle_three_way_hs(packet):
                         self.host_addr = packet["IP"].src
                         self.host_port = packet["TCP"].sport
-                        self.connected = True
                         break
                     else:
                         raise ListenerConnectException(
@@ -85,7 +84,7 @@ class Listener(Thread):
         except Exception as e:
             raise ListenerConnectException(f"{e}")
 
-        self.socket_connected = True
+        self.connected = True
         print(f"{self.host_addr} has connected!")
 
     def handle_three_way_hs(self, incoming_syn: IP) -> bool:

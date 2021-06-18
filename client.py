@@ -1,5 +1,5 @@
 import queue
-from listener import Listener
+from connection import Connection
 
 
 class Client:
@@ -16,9 +16,9 @@ class Client:
         self.host_addr = host_addr
         self.host_port = self.lstn_port + 1
         self.messages = queue.Queue()
-        self.listener = Listener(addr=self.lstn_addr,
-                                 port=self.lstn_port,
-                                 messages_queue=self.messages)
+        self.connection = Connection(addr=self.lstn_addr,
+                                     port=self.lstn_port,
+                                     messages_queue=self.messages)
         self.setup()
 
     def setup(self) -> None:
@@ -26,8 +26,9 @@ class Client:
         Sets up listener connection
         """
         try:
-            self.listener.listen_for_connections()
-            self.listener.setDaemon(True)
+            # The host on the other end should also be listening on the same port
+            self.connection.listen_for_connections()
+            self.connection.setDaemon(True)
         except Exception as e:
             print(f"setup(): {e}")
 
@@ -35,7 +36,7 @@ class Client:
         """Starts listener
         """
         # Start listener thread
-        self.listener.start()
+        self.connection.start()
         self.running = True
 
         while self.running:
@@ -47,4 +48,4 @@ class Client:
         """Stop and close everything
         """
         self.running = False
-        self.listener.stop()
+        self.connection.stop()
