@@ -1,6 +1,7 @@
 import socket
 import queue
 import random
+import time
 import errno
 from threading import Thread
 from scapy.all import Raw, StreamSocket, IP, TCP, sr1, send, conf
@@ -68,6 +69,8 @@ class Connection(Thread):
                     else:
                         self.messages.put(("host", packet[TCP].payload.load.decode('utf-8')))
 
+                time.sleep(0.001)
+
         except ListenerConnectException as e:
             print(f"Listener connect(). {e.reason}")
 
@@ -112,6 +115,8 @@ class Connection(Thread):
                 else:
                     raise ListenerConnectException(
                         "Couldn't complete connection")
+
+            time.sleep(0.001)
 
         self.connected = True
         print(f"{self.clnt_addr} has connected!")
@@ -194,6 +199,7 @@ class Connection(Thread):
                             ack=self.clnt_seq)
                         send(ack)
                 else:
+                    time.sleep(0.001)
                     continue
             except socket.error as e:
                 err = e.args[0]
