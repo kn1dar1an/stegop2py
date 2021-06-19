@@ -1,50 +1,51 @@
 import queue
-from listener import Listener
+from connection import Connection
 
 
 class Client:
-    def __init__(self, lstn_addr: str, host_addr: str):
+    def __init__(self, lcl_addr: str, rmt_addr: str):
         """Class constructor
 
         Args:
-            lstn_addr (str): Address to listen to / Serve on
-            host_addr (str): Host's destination address
+            lcl_addr (str): Address to listen to / Serve on
+            rmt_addr (str): Host's destination address
         """
         self.running = False
-        self.lstn_addr = lstn_addr
-        self.lstn_port = 12321
-        self.host_addr = host_addr
-        self.host_port = self.lstn_port + 1
+        self.lcl_addr = lcl_addr
+        self.rmt_addr = ""
+        self.rx_port = 12321
+        self.tx_port = self.rx_port + 1
         self.messages = queue.Queue()
-        self.listener = Listener(addr=self.lstn_addr,
-                                 port=self.lstn_port,
-                                 messages_queue=self.messages)
-        self.setup()
+        self.connection = Connection(serv_addr=self.lcl_addr,
+                                     serv_port=self.rx_port,
+                                     messages_queue=self.messages)
 
-    def setup(self) -> None:
+        # Try to connect, or listen for connections
+        self.setup(rmt_addr)
+
+    def setup(self, rmt_addr: str) -> None:
         """Setup necessary stuff
-        Sets up listener connection
+        Try to connect to host, if not successful listen for connections
         """
-        try:
-            self.listener.listen_for_connections()
-            self.listener.setDaemon(True)
-        except Exception as e:
-            print(f"setup(): {e}")
+        # The host on the other end should also be listening on the same port
+        if not self.connection.connect(rmt_addr, self.rx_port):
+            self.rmt_addr = self.connection.listen_for_connections()
+            self.connection.setDaemon(True)
 
     def start(self) -> None:
         """Starts listener
         """
-        # Start listener thread
-        self.listener.start()
+        # Start connection thread
+        self.connection.start()
         self.running = True
 
         while self.running:
             pass
 
-        return 0
+        return
 
     def stop(self):
         """Stop and close everything
         """
         self.running = False
-        self.listener.stop()
+        self.connection.stop()
