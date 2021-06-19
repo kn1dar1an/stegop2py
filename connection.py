@@ -58,14 +58,15 @@ class Connection(Thread):
 
                 # Check for incoming messages
                 packet = self.listen_for_packet()
-                if packet[TCP].flags == "R" or packet[TCP].flags == "RA":
-                    # Terminate on RST
-                    self.stop()
-                elif packet[TCP].flags == "A":
-                    # Ignore ACKs
-                    continue
-                else:
-                    self.messages.put(("host", packet))
+                if packet:
+                    if packet[TCP].flags == "R" or packet[TCP].flags == "RA":
+                        # Terminate on RST
+                        self.stop()
+                    elif packet[TCP].flags == "A":
+                        # Ignore ACKs
+                        continue
+                    else:
+                        self.messages.put(("host", packet[TCP].payload.load.decode('utf-8')))
 
         except ListenerConnectException as e:
             print(f"Listener connect(). {e.reason}")
@@ -86,6 +87,7 @@ class Connection(Thread):
         Returns:
             bool: return True if connection successful, or False if otherwise
         """
+        print(f"Attempting to connect to {clnt_addr}")
         if self.initiate_three_way_hs(clnt_addr, clnt_port):
             self.clnt_addr = clnt_addr
             self.clnt_port = clnt_port
@@ -102,10 +104,10 @@ class Connection(Thread):
         # Receive connection request
         while True:
             packet = self.listen_for_packet(acknowledge=False)
-            if packet[TCP].flags == "S":
+            if packet and packet[TCP].flags == "S":
                 if self.handle_three_way_hs(packet):
-                    self.clnt_addr = packet["IP"].src
-                    self.clnt_port = packet["TCP"].sport
+                    self.clnt_addr = packet[IP].src
+                    self.clnt_port = packet[TCP].sport
                     break
                 else:
                     raise ListenerConnectException(
@@ -152,8 +154,8 @@ class Connection(Thread):
         # 32bit ISN. TODO: Stego ISN
         self.serv_seq = random.randrange(0, 2 ** 32)
         clnt_seq = incoming_syn[TCP].seq
-        synack = IP(src=self.serv_addr, dst=incoming_syn["IP"].src) / \
-                 TCP(dport=incoming_syn["TCP"].sport,
+        synack = IP(src=self.serv_addr, dst=incoming_syn[IP].src) / \
+                 TCP(dport=incoming_syn[TCP].sport,
                      sport=self.serv_port,
                      flags="SA",
                      seq=self.serv_seq,
@@ -161,10 +163,10 @@ class Connection(Thread):
 
         # Get response
         response = sr1(synack)
-        if response["TCP"].flags == "A":
+        if response[TCP].flags == "A":
             # Is ACK
             self.serv_seq += 1
-            self.clnt_seq = response["TCP"].seq
+            self.clnt_seq = response[TCP].seq
             return True
 
         return False
@@ -182,22 +184,22 @@ class Connection(Thread):
                     # sent on this socket, other than SYNACKs and ACKs. Host's tcp
                     # seq is now previous value + current payload length. Assigning
                     # ACK number accordingly.
+                    self.clnt_seq += len(packet[TCP].payload)
                     if acknowledge:
-                        self.clnt_seq += len(packet["TCP"].payload)
                         ack = IP(src=self.serv_addr, dst=self.serv_addr) / TCP(
                             dport=self.clnt_port,
                             sport=self.serv_port,
                             flags="A",
                             seq=self.serv_seq,
                             ack=self.clnt_seq)
-                        send(ack, return_packets=False)
+                        send(ack)
                 else:
                     continue
             except socket.error as e:
                 err = e.args[0]
                 if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
                     # No data is available
-                    continue
+                    break
                 else:
                     print(e)
                     # Re-raise exception
@@ -215,12 +217,12 @@ class Connection(Thread):
                             dst=self.clnt_addr) / \
                          TCP(sport=self.serv_port,
                              dport=self.clnt_port,
-                             seq=self.serv_seq) / Raw(bytes(data))
+                             seq=self.serv_seq) / Raw(bytes(data, 'utf-8'))
 
                 # Send on layer 3
                 ack = sr1(packet, timeout=2)
                 if ack:
-                    self.serv_seq += len(packet["TCP"].payload)
+                    self.serv_seq += len(packet[TCP].payload)
                     return True
                 else:
                     return False
@@ -230,6 +232,7 @@ class Connection(Thread):
 
     def queue_outgoing(self, msg):
         if msg:
+            self.messages.put(("self", msg))
             self.out_queue.put(msg)
 
     def stop(self) -> None:
