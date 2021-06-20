@@ -54,6 +54,7 @@ class Client:
         """Stop and close everything
         """
         self.running = False
+        self.window_manager.stop()
         self.connection.stop()
 
     def input_callback(self, outgoing_message):
