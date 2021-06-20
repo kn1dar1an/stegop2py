@@ -44,7 +44,7 @@ class Stegocoder:
         """
         self.clnt_isn = isn
 
-    def encode(self, plaintext: str) -> bytes:
+    def encrypt(self, plaintext: str) -> bytes:
         """Encodes outgoing message
 
         Args:
@@ -68,12 +68,12 @@ class Stegocoder:
         aes_cipher = AES.new(aes_key, AES.MODE_CFB, aes_nonce)
 
         # Generate the ciphertext = salt + encrypted message
-        ciphertext = salt + aes_cipher.encrypt(plaintext)
+        ciphertext = salt + aes_cipher.encrypt(bytes(plaintext, 'utf-8'))
 
         # Return ciphertext
         return ciphertext
 
-    def decode(self, ciphertext: bytes) -> str:
+    def decrypt(self, ciphertext: bytes) -> str:
         """Decodes incoming message using key
 
         Args:
@@ -96,7 +96,7 @@ class Stegocoder:
         aes_cipher = AES.new(aes_key, AES.MODE_CFB, aes_nonce)
 
         # Decrypt plaintext from received ciphertext after salt
-        plaintext = salt + aes_cipher.decrypt(ciphertext[self.slt_size:])
+        plaintext = aes_cipher.decrypt(ciphertext[self.slt_size:])
 
         # Return UTF-8 string
         return str(plaintext, 'utf-8')
