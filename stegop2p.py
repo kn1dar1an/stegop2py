@@ -4,10 +4,10 @@ from client import Client
 
 
 def main():
+    client = Client("192.168.8.117", "192.168.8.113")
     # Run Client
     try:
         # Client startup
-        client = Client("192.168.8.117", "192.168.8.113")
         client.start()
     except KeyboardInterrupt:
         print("\nReceived ^C. stopping...")
