@@ -59,7 +59,7 @@ class WindowManager(Thread):
                 #if no input, pass
                 pass
 
-            sleep(0.0001) #sleep for 1 ms
+            sleep(0.001) #sleep for 1 ms
 
     def show_messages(self):
         for i in range(0, len(self.display_messages)):
