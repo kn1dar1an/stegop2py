@@ -187,7 +187,7 @@ class Connection(Thread):
                     # seq is now previous value + current payload length. Assigning
                     # ACK number accordingly.
                     self.clnt_seq += len(packet[TCP].payload)
-                    if acknowledge:
+                    if acknowledge and packet[TCP].flags != "A":
                         ack = IP(src=self.serv_addr, dst=self.clnt_addr) / TCP(
                             dport=self.clnt_port,
                             sport=self.serv_port,
