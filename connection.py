@@ -220,7 +220,6 @@ class Connection(Thread):
                             dst=self.clnt_addr) / \
                          TCP(sport=self.serv_port,
                              dport=self.clnt_port,
-                             flags="",
                              seq=self.serv_seq,
                              ack=self.clnt_seq) / Raw(bytes(data, 'utf-8'))
 

@@ -1,4 +1,5 @@
 import queue
+import time
 from connection import Connection
 from window_manager import WindowManager
 
@@ -46,6 +47,7 @@ class Client:
         self.running = True
 
         while self.running:
+            time.sleep(0.001)
             pass
 
         return
