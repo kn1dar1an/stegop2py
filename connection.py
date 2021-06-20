@@ -140,8 +140,9 @@ class Connection(Thread):
 
         elif synack[IP].src == clnt_addr and synack[TCP].sport == clnt_port and synack[TCP].flags == "SA":
             self.serv_seq += 1
+            self.clnt_seq += synack[TCP].seq
             ack = IP(src=self.serv_addr, dst=clnt_addr) / TCP(sport=self.serv_port, dport=clnt_port, flags="A",
-                                                              seq=self.serv_seq, ack=synack[TCP].seq + 1)
+                                                              seq=self.serv_seq, ack=self.clnt_seq + 1)
             # Send on Layer 3
             send(ack)
         else:
@@ -186,7 +187,7 @@ class Connection(Thread):
                     # sent on this socket, other than SYNACKs and ACKs. Host's tcp
                     # seq is now previous value + current payload length. Assigning
                     # ACK number accordingly.
-                    self.clnt_seq += len(packet[TCP].payload)
+                    self.clnt_seq += len(bytes(packet[TCP].payload))
                     if acknowledge and packet[TCP].flags != "A":
                         ack = IP(src=self.serv_addr, dst=self.clnt_addr) / TCP(
                             dport=self.clnt_port,
@@ -220,13 +221,14 @@ class Connection(Thread):
                             dst=self.clnt_addr) / \
                          TCP(sport=self.serv_port,
                              dport=self.clnt_port,
+                             flags="PA",
                              seq=self.serv_seq,
                              ack=self.clnt_seq) / Raw(bytes(data, 'utf-8'))
 
                 # Send on layer 3
                 ack = sr1(packet, timeout=2)
                 if ack:
-                    self.serv_seq += len(packet[TCP].payload)
+                    self.serv_seq += len(bytes(packet[TCP].payload))
                     return True
                 else:
                     return False
