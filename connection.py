@@ -74,9 +74,6 @@ class Connection(Thread):
         except ListenerConnectException as e:
             print(f"Listener connect(). {e.reason}")
 
-        except Exception as e:
-            print(f"Listener run(). {e}")
-
         finally:
             return
 
@@ -191,7 +188,7 @@ class Connection(Thread):
                     # ACK number accordingly.
                     self.clnt_seq += len(packet[TCP].payload)
                     if acknowledge:
-                        ack = IP(src=self.serv_addr, dst=self.serv_addr) / TCP(
+                        ack = IP(src=self.serv_addr, dst=self.clnt_addr) / TCP(
                             dport=self.clnt_port,
                             sport=self.serv_port,
                             flags="A",
@@ -223,7 +220,9 @@ class Connection(Thread):
                             dst=self.clnt_addr) / \
                          TCP(sport=self.serv_port,
                              dport=self.clnt_port,
-                             seq=self.serv_seq) / Raw(bytes(data, 'utf-8'))
+                             flags="A",
+                             seq=self.serv_seq,
+                             ack=self.clnt_seq) / Raw(bytes(data, 'utf-8'))
 
                 # Send on layer 3
                 ack = sr1(packet, timeout=2)
