@@ -1,8 +1,8 @@
-import queue
 import curses
 import curses.ascii
-from time import sleep
+import queue
 from threading import Thread
+from time import sleep
 from typing import Callable
 
 

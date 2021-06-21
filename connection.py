@@ -175,7 +175,7 @@ class Connection(Thread):
             # Is ACK
             self.serv_seq += 1
             self.clnt_seq = response[TCP].seq
-            self.stegocoder.serv_data_offset(clnt_seq)
+            self.stegocoder.set_decoding_offset(clnt_seq)
             return True
 
         return False
