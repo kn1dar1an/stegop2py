@@ -23,12 +23,13 @@ class WindowManager(Thread):
     def run(self):
         self.running = True
         self.screen = curses.initscr()
+
         # Get screen width and height
         self.scr_y, self.scr_x = self.screen.getmaxyx()
 
         # Curses configuration
         curses.echo()
-        curses.cbreak(True)
+        curses.cbreak()
         self.screen.nodelay(True)
         self.screen.keypad(True)
         self.screen.clear()
@@ -38,7 +39,7 @@ class WindowManager(Thread):
             if not self.message_queue.empty():
                 self.display_messages.insert(0, self.message_queue.get())
 
-            #get message
+            # Get message
             try:
                 char = self.screen.getch()
                 if char == curses.ERR:
@@ -56,25 +57,26 @@ class WindowManager(Thread):
                 self.show_messages()
 
             except curses.error:
-                #if no input, pass
+                # If no input, pass
                 pass
 
-            sleep(0.001) #sleep for 1 ms
+            sleep(0.001)  # Sleep for 1 ms
 
     def show_messages(self):
         for i in range(0, len(self.display_messages)):
             if i > self.scr_y:
                 break
             try:
-                y_coord = self.scr_y - (i + 3) # Print starting from 3 lines from the bottom
-                sender, msg =  self.display_messages[i]
+                y_coord = self.scr_y - (i + 3)  # Print starting from 3 lines from the bottom
+                sender, msg = self.display_messages[i]
                 # Add the message sender
                 who = ""
                 if sender == "host":
-
                     who = "Friend > "
                 elif sender == "self":
                     who = "You    > "
+                elif sender == "system":
+                    who = "System >"
                 self.screen.addstr(y_coord, 0, who + msg)
                 self.screen.clrtoeol()
             except curses.error:
@@ -85,8 +87,13 @@ class WindowManager(Thread):
         self.screen.clrtoeol()
         self.screen.refresh()
 
+    def print(self, message: str):
+        dm = ('system', message)
+        self.display_messages.insert(0, dm)
+
     def stop(self):
         self.running = False
-        curses.nocbreak()
         self.screen.keypad(False)
+        curses.nocbreak()
         curses.echo()
+        curses.endwin()

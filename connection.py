@@ -1,12 +1,14 @@
 import errno
+import logging
 import queue
 import socket
 import time
-import logging
+
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from threading import Thread
 from scapy.all import Raw, IP, TCP, sr1, send, conf
 from stegocoder import Stegocoder
+from typing import Callable
 
 
 class Connection(Thread):
@@ -15,7 +17,7 @@ class Connection(Thread):
     handling.
     """
 
-    def __init__(self, password: str, serv_addr: str, serv_port: int, messages_queue: queue.Queue):
+    def __init__(self, password: str, serv_addr: str, serv_port: int, messages_queue: queue.Queue, print_cb: Callable):
         """Class constructor
 
         Args:
@@ -43,6 +45,8 @@ class Connection(Thread):
         self.clnt_seq = 0
         self.out_queue = queue.Queue()
 
+        self.print_cb = print_cb
+
         # disable scapy output
         conf.verb = 0
 
@@ -59,7 +63,7 @@ class Connection(Thread):
                     msg = self.out_queue.get()
                     stegotext, ipid = self.stegocoder.stegoencode(msg)
                     if not self.send_packet(stegotext, ipid):
-                        print("No ACK from remote")
+                        self.print_cb("No ACK from remote")
 
                 # Check for incoming messages
                 packet = self.listen_for_packet()
@@ -71,8 +75,15 @@ class Connection(Thread):
                         # Ignore ACKs
                         continue
                     elif Raw in packet:
-                        self.messages.put(
-                            ("host", self.stegocoder.stegodecode(packet[Raw].load, packet[IP].id)))
+                        decoded = ""
+                        try:
+                            decoded = self.stegocoder.stegodecode(packet[Raw].load, packet[IP].id)
+                        except UnicodeDecodeError:
+                            # If password is incorrect decoding will fail
+                            self.print_cb(f" Unicode decode error: check password")
+                            pass
+                        else:
+                            self.messages.put(('host', decoded))
                     else:
                         continue
 
@@ -121,8 +132,8 @@ class Connection(Thread):
                     self.clnt_port = packet[TCP].sport
                     break
                 else:
-                    raise ListenerConnectException(
-                        "Couldn't complete connection")
+                    print(f"Connection with {packet[IP].src} failed.")
+                    continue
 
             time.sleep(0.001)
 
@@ -219,9 +230,12 @@ class Connection(Thread):
                     # No data is available
                     break
                 else:
-                    print(e)
-                    # Re-raise exception
-                    raise
+                    self.print_cb(e)
+                    break
+
+            except Exception as e:
+                self.print_cb(e)
+                break
 
     def send_packet(self, stegotext: bytes, ipid: int) -> bool:
         if not self.connected:
@@ -246,7 +260,7 @@ class Connection(Thread):
                 else:
                     return False
             except Exception as e:
-                print(f"Failed to send packet: {e}")
+                self.print_cb(f"Failed to send packet: {e}")
                 return False
 
     def queue_outgoing(self, msg):
