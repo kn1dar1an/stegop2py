@@ -3,6 +3,8 @@ import queue
 import socket
 import sys
 import time
+import logging
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from threading import Thread
 from scapy.all import Raw, IP, TCP, sr1, send, conf
 from stegocoder import Stegocoder
@@ -69,16 +71,23 @@ class Connection(Thread):
                     elif packet[TCP].flags == "A":
                         # Ignore ACKs
                         continue
-                    else:
+                    elif Raw in packet:
+                        packet.show()
                         self.messages.put(
-                            ("host", self.stegocoder.stegodecode(packet[TCP].payload.load, packet[IP].id)))
+                            ("host", self.stegocoder.stegodecode(packet[Raw].load, packet[IP].id)))
+                    else:
+                        continue
 
                 time.sleep(0.001)
 
         except ListenerConnectException as e:
             print(f"Listener connect(). {e.reason}")
 
+        except Exception as e:
+            print(f"Conenction loop: {e}")
+
         finally:
+            print("connection: exiting loop")
             return
 
     def connect(self, clnt_addr: str, clnt_port: int) -> bool:
@@ -202,6 +211,7 @@ class Connection(Thread):
                             seq=self.serv_seq,
                             ack=self.clnt_seq)
                         send(ack)
+                    return packet
                 else:
                     time.sleep(0.001)
                     continue
@@ -214,10 +224,8 @@ class Connection(Thread):
                     print(e)
                     # Re-raise exception
                     raise
-            else:
-                return packet
 
-    def send_packet(self, stegotext: bytes, ipid: bytes) -> bool:
+    def send_packet(self, stegotext: bytes, ipid: int) -> bool:
         if not self.connected:
             raise Exception("Socket not connected!")
 
@@ -225,7 +233,7 @@ class Connection(Thread):
             try:
                 packet = IP(src=self.serv_addr,
                             dst=self.clnt_addr,
-                            id=int.from_bytes(ipid, byteorder=sys.byteorder)) / \
+                            id=ipid) / \
                          TCP(sport=self.serv_port,
                              dport=self.clnt_port,
                              flags="PA",

@@ -52,7 +52,7 @@ class Stegocoder:
         """
         self.clnt_data_offset = isn & (0xff << 8) >> 8  # Get lowest significant byte
 
-    def stegoencode(self, message: str) -> (bytes, bytes):
+    def stegoencode(self, message: str) -> (bytes, int):
         """Embed message in random chain of bits
 
         Args:
@@ -80,7 +80,7 @@ class Stegocoder:
         stegotext = chain[0:self.serv_data_offset] + ciphertext + chain[self.serv_data_offset + message_length:]
 
         ipid = random.randbytes(1) + message_length.to_bytes(1, sys.byteorder)
-        return (stegotext, ipid)
+        return (stegotext, int.from_bytes(ipid, sys.byteorder))
 
     def stegodecode(self, stegotext: bytes, ipid: int) -> str:
         """Steganalysis. Retrieve message embedded in random data
