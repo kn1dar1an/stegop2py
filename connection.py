@@ -1,19 +1,23 @@
-import socket
-import queue
-import random
-import time
 import errno
+import logging
+import queue
+import socket
+import time
+
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from threading import Thread
-from scapy.all import Raw, StreamSocket, IP, TCP, sr1, send, conf
+from scapy.all import Raw, IP, TCP, sr1, send, conf
+from stegocoder import Stegocoder
+from typing import Callable
 
 
 class Connection(Thread):
-    """ Class that contains the raw socket and handles sending and receiving data.
+    """ Class that contains the raw socket and handles encoding, decoding, sending, and receiving data.
     Implementation is simple and takes into account very basic error
     handling.
     """
 
-    def __init__(self, serv_addr: str, serv_port: int, messages_queue: queue.Queue):
+    def __init__(self, password: str, serv_addr: str, serv_port: int, messages_queue: queue.Queue, print_cb: Callable):
         """Class constructor
 
         Args:
@@ -23,6 +27,7 @@ class Connection(Thread):
             messages_queue (queue.Queue): Queue for storing plain-text messages
         """
         super(Connection, self).__init__()
+        self.stegocoder = Stegocoder(password)
         self.serv_addr = serv_addr
         self.clnt_addr = ""
         self.serv_port = serv_port
@@ -40,6 +45,8 @@ class Connection(Thread):
         self.clnt_seq = 0
         self.out_queue = queue.Queue()
 
+        self.print_cb = print_cb
+
         # disable scapy output
         conf.verb = 0
 
@@ -54,8 +61,9 @@ class Connection(Thread):
                 # If any queued messages for sending, send them
                 if not self.out_queue.empty():
                     msg = self.out_queue.get()
-                    if not self.send_packet(msg):
-                        print("No ACK from remote")
+                    stegotext, ipid = self.stegocoder.stegoencode(msg)
+                    if not self.send_packet(stegotext, ipid):
+                        self.print_cb("No ACK from remote")
 
                 # Check for incoming messages
                 packet = self.listen_for_packet()
@@ -66,15 +74,29 @@ class Connection(Thread):
                     elif packet[TCP].flags == "A":
                         # Ignore ACKs
                         continue
+                    elif Raw in packet:
+                        decoded = ""
+                        try:
+                            decoded = self.stegocoder.stegodecode(packet[Raw].load, packet[IP].id)
+                        except UnicodeDecodeError:
+                            # If password is incorrect decoding will fail
+                            self.print_cb(f" Unicode decode error: check password")
+                            pass
+                        else:
+                            self.messages.put(('host', decoded))
                     else:
-                        self.messages.put(("host", packet[TCP].payload.load.decode('utf-8')))
+                        continue
 
                 time.sleep(0.001)
 
         except ListenerConnectException as e:
             print(f"Listener connect(). {e.reason}")
 
+        except Exception as e:
+            print(f"Conenction loop: {e}")
+
         finally:
+            print("connection: exiting loop")
             return
 
     def connect(self, clnt_addr: str, clnt_port: int) -> bool:
@@ -110,8 +132,8 @@ class Connection(Thread):
                     self.clnt_port = packet[TCP].sport
                     break
                 else:
-                    raise ListenerConnectException(
-                        "Couldn't complete connection")
+                    print(f"Connection with {packet[IP].src} failed.")
+                    continue
 
             time.sleep(0.001)
 
@@ -123,8 +145,8 @@ class Connection(Thread):
         """
         Initiates a 3WHS to start a connection
         """
-        # 32bit ISN. TODO: Stego ISN
-        self.serv_seq = random.randrange(0, 2 ** 32)
+        # 32bit ISN embedded with the data-offset.
+        self.serv_seq = self.stegocoder.get_encoding_isn()
         syn = IP(src=self.serv_addr, dst=clnt_addr) / TCP(sport=self.serv_port, dport=clnt_port, flags="S",
                                                           seq=self.serv_seq, ack=0)
         # Try receiving a response 5 times with 2 second timeout
@@ -141,6 +163,7 @@ class Connection(Thread):
         elif synack[IP].src == clnt_addr and synack[TCP].sport == clnt_port and synack[TCP].flags == "SA":
             self.serv_seq += 1
             self.clnt_seq += synack[TCP].seq
+            self.stegocoder.set_decoding_offset(synack[TCP].seq)
             ack = IP(src=self.serv_addr, dst=clnt_addr) / TCP(sport=self.serv_port, dport=clnt_port, flags="A",
                                                               seq=self.serv_seq, ack=self.clnt_seq + 1)
             # Send on Layer 3
@@ -154,8 +177,8 @@ class Connection(Thread):
     def handle_three_way_hs(self, incoming_syn: IP) -> bool:
         """Handles 3-Way-Handshake for incoming connections
         """
-        # 32bit ISN. TODO: Stego ISN
-        self.serv_seq = random.randrange(0, 2 ** 32)
+        # 32bit ISN embedded with the data-offset.
+        self.serv_seq = self.stegocoder.get_encoding_isn()
         clnt_seq = incoming_syn[TCP].seq
         synack = IP(src=self.serv_addr, dst=incoming_syn[IP].src) / \
                  TCP(dport=incoming_syn[TCP].sport,
@@ -170,6 +193,7 @@ class Connection(Thread):
             # Is ACK
             self.serv_seq += 1
             self.clnt_seq = response[TCP].seq
+            self.stegocoder.set_decoding_offset(clnt_seq)
             return True
 
         return False
@@ -196,6 +220,7 @@ class Connection(Thread):
                             seq=self.serv_seq,
                             ack=self.clnt_seq)
                         send(ack)
+                    return packet
                 else:
                     time.sleep(0.001)
                     continue
@@ -205,25 +230,27 @@ class Connection(Thread):
                     # No data is available
                     break
                 else:
-                    print(e)
-                    # Re-raise exception
-                    raise
-            else:
-                return packet
+                    self.print_cb(e)
+                    break
 
-    def send_packet(self, data) -> bool:
+            except Exception as e:
+                self.print_cb(e)
+                break
+
+    def send_packet(self, stegotext: bytes, ipid: int) -> bool:
         if not self.connected:
             raise Exception("Socket not connected!")
 
-        if data:
+        if stegotext:
             try:
                 packet = IP(src=self.serv_addr,
-                            dst=self.clnt_addr) / \
+                            dst=self.clnt_addr,
+                            id=ipid) / \
                          TCP(sport=self.serv_port,
                              dport=self.clnt_port,
                              flags="PA",
                              seq=self.serv_seq,
-                             ack=self.clnt_seq) / Raw(bytes(data, 'utf-8'))
+                             ack=self.clnt_seq) / Raw(stegotext)
 
                 # Send on layer 3
                 ack = sr1(packet, timeout=2)
@@ -233,7 +260,7 @@ class Connection(Thread):
                 else:
                     return False
             except Exception as e:
-                print(f"Failed to send packet: {e}")
+                self.print_cb(f"Failed to send packet: {e}")
                 return False
 
     def queue_outgoing(self, msg):

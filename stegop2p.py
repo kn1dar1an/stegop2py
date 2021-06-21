@@ -1,10 +1,16 @@
 #!/usr/bin/python
-
+import sys
+import getpass
 from client import Client
 
 
 def main():
-    client = Client("192.168.8.117", "192.168.8.113")
+    if len(sys.argv) != 3:
+        print("Missing parameters")
+        return
+
+    password = getpass.getpass(prompt="Enter password for decoding: ")
+    client = Client(password, sys.argv[1], sys.argv[2])
     # Run Client
     try:
         # Client startup

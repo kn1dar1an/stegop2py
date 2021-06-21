@@ -1,11 +1,12 @@
 import queue
 import time
+
 from connection import Connection
 from window_manager import WindowManager
 
 
 class Client:
-    def __init__(self, lcl_addr: str, rmt_addr: str):
+    def __init__(self, password: str, lcl_addr: str, rmt_addr: str):
         """Class constructor
 
         Args:
@@ -18,9 +19,11 @@ class Client:
         self.serv_port = 12321
         self.clnt_port = self.serv_port + 1
         self.messages = queue.Queue()
-        self.connection = Connection(serv_addr=self.lcl_addr,
+        self.connection = Connection(password,
+                                     serv_addr=self.lcl_addr,
                                      serv_port=self.serv_port,
-                                     messages_queue=self.messages)
+                                     messages_queue=self.messages,
+                                     print_cb=self.print_callback)
         self.window_manager = WindowManager(self.messages, self.input_callback)
 
         # Try to connect, or listen for connections
@@ -48,7 +51,6 @@ class Client:
 
         while self.running:
             time.sleep(0.001)
-            pass
 
         return
 
@@ -61,4 +63,6 @@ class Client:
 
     def input_callback(self, outgoing_message):
         self.connection.queue_outgoing(outgoing_message)
-        pass
+
+    def print_callback(self, message: str):
+        self.window_manager.print(message)
