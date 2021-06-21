@@ -1,8 +1,8 @@
-import sys
 import random
+import sys
+from Crypto import Random
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
-from Crypto import Random
 
 
 class Stegocoder:
@@ -20,14 +20,16 @@ class Stegocoder:
     IP ID field for these purposes, and the offset in the ISN of the TCP connection. THe offset won't change
     until restarting
     """
+
     def __init__(self, password: str):
-        self.slt_size = 16 # Salt size, could be anything
-        self.key_size = 32 # For AES256
-        self.nce_size = 16 # AES Nonce / IV size
+        self.slt_size = 16  # Salt size, could be anything
+        self.key_size = 32  # For AES256
+        self.nce_size = 16  # AES Nonce / IV size
 
-        self.password = password # Pre-shared password
+        self.password = password  # Pre-shared password
 
-        self.serv_data_offset = int.from_bytes(random.randbytes(1), byteorder=sys.byteorder) # Generate random byte for offset
+        self.serv_data_offset = int.from_bytes(random.randbytes(1),
+                                               byteorder=sys.byteorder)  # Generate random byte for offset
         self.clnt_data_offset = 0
         pass
 
@@ -39,7 +41,7 @@ class Stegocoder:
             int: local ISN / ciphertext offset-key
         """
         serv_isn = random.getrandbits(32)
-        self.serv_data_offset = serv_isn & (0xff << 8) >> 8 # get lowest significant byte
+        self.serv_data_offset = serv_isn & (0xff << 8) >> 8  # get lowest significant byte
         return int(serv_isn)
 
     def set_decoding_offset(self, isn: int) -> None:
@@ -48,7 +50,7 @@ class Stegocoder:
         Args:
             isn (int): connecting client's ISN
         """
-        self.clnt_data_offset = isn & (0xff << 8) >> 8 # Get lowest significant byte
+        self.clnt_data_offset = isn & (0xff << 8) >> 8  # Get lowest significant byte
 
     def stegoencode(self, message: str) -> (bytes, bytes):
         """Embed message in random chain of bits
@@ -60,7 +62,7 @@ class Stegocoder:
         Returns
             (bytes, int): Tuple with the bytes chain, and the corresponding IP ID field value with the length
         """
-        #Encrypt message
+        # Encrypt message
         ciphertext = self.encrypt(message)
 
         # Get length
@@ -93,10 +95,10 @@ class Stegocoder:
             str: The plaintext
         """
         # Get th e length from IP ID
-        length = ipid & (0xff << 8) >> 8 # Get the lowest (rightmost) byte from the ipid field
+        length = ipid & (0xff << 8) >> 8  # Get the lowest (rightmost) byte from the ipid field
 
         # Get encrypted message from stegotext
-        ciphertext = stegotext[self.clnt_data_offset:self.clnt_data_offset+length]
+        ciphertext = stegotext[self.clnt_data_offset:self.clnt_data_offset + length]
 
         # Decrypt message
         plaintext = self.decrypt(ciphertext)

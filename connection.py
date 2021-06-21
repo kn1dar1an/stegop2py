@@ -1,11 +1,10 @@
-import socket
+import errno
 import queue
-import random
+import socket
 import sys
 import time
-import errno
 from threading import Thread
-from scapy.all import Raw, StreamSocket, IP, TCP, sr1, send, conf
+from scapy.all import Raw, IP, TCP, sr1, send, conf
 from stegocoder import Stegocoder
 
 
@@ -71,7 +70,8 @@ class Connection(Thread):
                         # Ignore ACKs
                         continue
                     else:
-                        self.messages.put(("host", self.stegocoder.stegodecode(packet[TCP].payload.load, packet[IP].id)))
+                        self.messages.put(
+                            ("host", self.stegocoder.stegodecode(packet[TCP].payload.load, packet[IP].id)))
 
                 time.sleep(0.001)
 
