@@ -31,10 +31,9 @@ class Stegocoder:
         self.clnt_data_offset = 0
         pass
 
-    def get_encoding_offset(self) -> int:
-        """Generates and returns local ISN as stego-key for encoding
-
-        the lowest byte will contain the data offset. 0-255
+    def get_encoding_isn(self) -> int:
+        """Generates and returns local ISN as stego-key for encoding.
+        The lowest byte will contain the data offset. 0-255
 
         Returns:
             int: local ISN / ciphertext offset-key
@@ -51,7 +50,7 @@ class Stegocoder:
         """
         self.clnt_data_offset = isn & (0xff << 8) >> 8 # Get lowest significant byte
 
-    def stegoencode(self, message: str) -> (bytes, int):
+    def stegoencode(self, message: str) -> (bytes, bytes):
         """Embed message in random chain of bits
 
         Args:

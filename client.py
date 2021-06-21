@@ -5,7 +5,7 @@ from window_manager import WindowManager
 
 
 class Client:
-    def __init__(self, lcl_addr: str, rmt_addr: str):
+    def __init__(self, password: str, lcl_addr: str, rmt_addr: str):
         """Class constructor
 
         Args:
@@ -18,7 +18,8 @@ class Client:
         self.serv_port = 12321
         self.clnt_port = self.serv_port + 1
         self.messages = queue.Queue()
-        self.connection = Connection(serv_addr=self.lcl_addr,
+        self.connection = Connection(password,
+                                     serv_addr=self.lcl_addr,
                                      serv_port=self.serv_port,
                                      messages_queue=self.messages)
         self.window_manager = WindowManager(self.messages, self.input_callback)

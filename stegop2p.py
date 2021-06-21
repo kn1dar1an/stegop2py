@@ -4,7 +4,7 @@ from client import Client
 
 
 def main():
-    client = Client("192.168.8.117", "192.168.8.113")
+    client = Client("Some_password#%@", "192.168.8.117", "192.168.8.113")
     # Run Client
     try:
         # Client startup

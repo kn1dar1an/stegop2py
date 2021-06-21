@@ -1,19 +1,21 @@
 import socket
 import queue
 import random
+import sys
 import time
 import errno
 from threading import Thread
 from scapy.all import Raw, StreamSocket, IP, TCP, sr1, send, conf
+from stegocoder import Stegocoder
 
 
 class Connection(Thread):
-    """ Class that contains the raw socket and handles sending and receiving data.
+    """ Class that contains the raw socket and handles encoding, decoding, sending, and receiving data.
     Implementation is simple and takes into account very basic error
     handling.
     """
 
-    def __init__(self, serv_addr: str, serv_port: int, messages_queue: queue.Queue):
+    def __init__(self, password: str, serv_addr: str, serv_port: int, messages_queue: queue.Queue):
         """Class constructor
 
         Args:
@@ -23,6 +25,7 @@ class Connection(Thread):
             messages_queue (queue.Queue): Queue for storing plain-text messages
         """
         super(Connection, self).__init__()
+        self.stegocoder = Stegocoder(password)
         self.serv_addr = serv_addr
         self.clnt_addr = ""
         self.serv_port = serv_port
@@ -54,7 +57,8 @@ class Connection(Thread):
                 # If any queued messages for sending, send them
                 if not self.out_queue.empty():
                     msg = self.out_queue.get()
-                    if not self.send_packet(msg):
+                    stegotext, ipid = self.stegocoder.stegoencode(msg)
+                    if not self.send_packet(stegotext, ipid):
                         print("No ACK from remote")
 
                 # Check for incoming messages
@@ -67,7 +71,7 @@ class Connection(Thread):
                         # Ignore ACKs
                         continue
                     else:
-                        self.messages.put(("host", packet[TCP].payload.load.decode('utf-8')))
+                        self.messages.put(("host", self.stegocoder.stegodecode(packet[TCP].payload.load, packet[IP].id)))
 
                 time.sleep(0.001)
 
@@ -124,7 +128,7 @@ class Connection(Thread):
         Initiates a 3WHS to start a connection
         """
         # 32bit ISN. TODO: Stego ISN
-        self.serv_seq = random.randrange(0, 2 ** 32)
+        self.serv_seq = self.stegocoder.get_encoding_isn()
         syn = IP(src=self.serv_addr, dst=clnt_addr) / TCP(sport=self.serv_port, dport=clnt_port, flags="S",
                                                           seq=self.serv_seq, ack=0)
         # Try receiving a response 5 times with 2 second timeout
@@ -141,6 +145,7 @@ class Connection(Thread):
         elif synack[IP].src == clnt_addr and synack[TCP].sport == clnt_port and synack[TCP].flags == "SA":
             self.serv_seq += 1
             self.clnt_seq += synack[TCP].seq
+            self.stegocoder.set_decoding_offset(synack[TCP].seq)
             ack = IP(src=self.serv_addr, dst=clnt_addr) / TCP(sport=self.serv_port, dport=clnt_port, flags="A",
                                                               seq=self.serv_seq, ack=self.clnt_seq + 1)
             # Send on Layer 3
@@ -155,7 +160,7 @@ class Connection(Thread):
         """Handles 3-Way-Handshake for incoming connections
         """
         # 32bit ISN. TODO: Stego ISN
-        self.serv_seq = random.randrange(0, 2 ** 32)
+        self.serv_seq = self.stegocoder.get_encoding_isn()
         clnt_seq = incoming_syn[TCP].seq
         synack = IP(src=self.serv_addr, dst=incoming_syn[IP].src) / \
                  TCP(dport=incoming_syn[TCP].sport,
@@ -170,6 +175,7 @@ class Connection(Thread):
             # Is ACK
             self.serv_seq += 1
             self.clnt_seq = response[TCP].seq
+            self.stegocoder.serv_data_offset(clnt_seq)
             return True
 
         return False
@@ -211,19 +217,20 @@ class Connection(Thread):
             else:
                 return packet
 
-    def send_packet(self, data) -> bool:
+    def send_packet(self, stegotext: bytes, ipid: bytes) -> bool:
         if not self.connected:
             raise Exception("Socket not connected!")
 
-        if data:
+        if stegotext:
             try:
                 packet = IP(src=self.serv_addr,
-                            dst=self.clnt_addr) / \
+                            dst=self.clnt_addr,
+                            id=int.from_bytes(ipid, byteorder=sys.byteorder)) / \
                          TCP(sport=self.serv_port,
                              dport=self.clnt_port,
                              flags="PA",
                              seq=self.serv_seq,
-                             ack=self.clnt_seq) / Raw(bytes(data, 'utf-8'))
+                             ack=self.clnt_seq) / Raw(stegotext)
 
                 # Send on layer 3
                 ack = sr1(packet, timeout=2)
