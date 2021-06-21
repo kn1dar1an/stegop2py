@@ -2,11 +2,12 @@
 import sys
 import getpass
 from client import Client
+from usage import print_usage
 
 
 def main():
     if len(sys.argv) != 3:
-        print("Missing parameters")
+        print_usage()
         return
 
     password = getpass.getpass(prompt="Enter password for decoding: ")
