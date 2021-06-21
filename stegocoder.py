@@ -31,7 +31,6 @@ class Stegocoder:
         self.serv_data_offset = int.from_bytes(random.randbytes(1),
                                                byteorder=sys.byteorder)  # Generate random byte for offset
         self.clnt_data_offset = 0
-        pass
 
     def get_encoding_isn(self) -> int:
         """Generates and returns local ISN as stego-key for encoding.
@@ -52,7 +51,7 @@ class Stegocoder:
         """
         self.clnt_data_offset = isn & (0xff << 8) >> 8  # Get lowest significant byte
 
-    def stegoencode(self, message: str) -> (bytes, int):
+    def stegoencode(self, plaintext: str) -> (bytes, int):
         """Embed message in random chain of bits
 
         Args:
@@ -63,7 +62,7 @@ class Stegocoder:
             (bytes, int): Tuple with the bytes chain, and the corresponding IP ID field value with the length
         """
         # Encrypt message
-        ciphertext = self.encrypt(message)
+        ciphertext = self.encrypt(plaintext)
 
         # Get length
         message_length = len(ciphertext)
@@ -74,13 +73,13 @@ class Stegocoder:
 
         # Generate random bytes at from 1-2 times the length of the message
         size = random.randint(1 * message_length, 2 * message_length) + self.serv_data_offset
-        chain = random.randbytes(size)
+        randomness = random.randbytes(size)
 
         # Embed message starting at offset
-        stegotext = chain[0:self.serv_data_offset] + ciphertext + chain[self.serv_data_offset + message_length:]
+        stegotext = randomness[0:self.serv_data_offset] + ciphertext + randomness[self.serv_data_offset + message_length:]
+        ipid = random.randbytes(1) + message_length.to_bytes(1, 'big')
 
-        ipid = random.randbytes(1) + message_length.to_bytes(1, sys.byteorder)
-        return (stegotext, int.from_bytes(ipid, sys.byteorder))
+        return (stegotext, int.from_bytes(ipid, 'big'))
 
     def stegodecode(self, stegotext: bytes, ipid: int) -> str:
         """Steganalysis. Retrieve message embedded in random data
@@ -94,6 +93,7 @@ class Stegocoder:
         Returns:
             str: The plaintext
         """
+
         # Get th e length from IP ID
         length = ipid & (0xff << 8) >> 8  # Get the lowest (rightmost) byte from the ipid field
 
@@ -114,9 +114,9 @@ class Stegocoder:
         Returns:
             bytes: Bytes ciphertext
         """
+
         # generate salt every time
         salt = Random.new().read(self.slt_size)
-
         # Derive a key based on password and salt for generating a nonce/iv and aes key for encryption
         # using PBKDF2 algorithm every time
         derived_key = PBKDF2(password=self.password, salt=salt, dkLen=self.nce_size + self.key_size)
@@ -145,6 +145,7 @@ class Stegocoder:
         """
         # Get salt from ciphertext
         salt = ciphertext[0:self.slt_size]
+
 
         # Derive a key based on password and received salt for generating a nonce/iv and aes key for decryption
         derived_key = PBKDF2(password=self.password, salt=salt, dkLen=self.nce_size + self.key_size)

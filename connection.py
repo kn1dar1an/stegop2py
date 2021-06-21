@@ -1,7 +1,6 @@
 import errno
 import queue
 import socket
-import sys
 import time
 import logging
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
@@ -72,7 +71,6 @@ class Connection(Thread):
                         # Ignore ACKs
                         continue
                     elif Raw in packet:
-                        packet.show()
                         self.messages.put(
                             ("host", self.stegocoder.stegodecode(packet[Raw].load, packet[IP].id)))
                     else:
@@ -136,7 +134,7 @@ class Connection(Thread):
         """
         Initiates a 3WHS to start a connection
         """
-        # 32bit ISN. TODO: Stego ISN
+        # 32bit ISN embedded with the data-offset.
         self.serv_seq = self.stegocoder.get_encoding_isn()
         syn = IP(src=self.serv_addr, dst=clnt_addr) / TCP(sport=self.serv_port, dport=clnt_port, flags="S",
                                                           seq=self.serv_seq, ack=0)
@@ -168,7 +166,7 @@ class Connection(Thread):
     def handle_three_way_hs(self, incoming_syn: IP) -> bool:
         """Handles 3-Way-Handshake for incoming connections
         """
-        # 32bit ISN. TODO: Stego ISN
+        # 32bit ISN embedded with the data-offset.
         self.serv_seq = self.stegocoder.get_encoding_isn()
         clnt_seq = incoming_syn[TCP].seq
         synack = IP(src=self.serv_addr, dst=incoming_syn[IP].src) / \
