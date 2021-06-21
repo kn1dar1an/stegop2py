@@ -79,7 +79,7 @@ class Stegocoder:
         # Embed message starting at offset
         stegotext = chain[0:self.serv_data_offset] + ciphertext + chain[self.serv_data_offset + message_length:]
 
-        ipid = random.randbytes(3) + message_length.to_bytes(1, sys.byteorder)
+        ipid = random.randbytes(1) + message_length.to_bytes(1, sys.byteorder)
         return (stegotext, ipid)
 
     def stegodecode(self, stegotext: bytes, ipid: int) -> str:
