@@ -1,3 +1,5 @@
+import sys
+import random
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto import Random
@@ -14,8 +16,9 @@ class Stegocoder:
     it would be great to implement TLS1.3 to send the chain of random bits with the embedded
     message as ciphertext sent via TCP is unencrypted.
 
-    To be able to decode the message, the stego-text length must be known length will be stored in the
-    IP ID field for these purposes
+    To be able to decode the message, the stego-text will be stored in the
+    IP ID field for these purposes, and the offset in the ISN of the TCP connection. THe offset won't change
+    until restarting
     """
     def __init__(self, password: str):
         self.slt_size = 16 # Salt size, could be anything
@@ -24,34 +27,91 @@ class Stegocoder:
 
         self.password = password # Pre-shared password
 
-        self.serv_isn = 0
-        self.clnt_isn = 0
+        self.serv_data_offset = int.from_bytes(random.randbytes(1), byteorder=sys.byteorder) # Generate random byte for offset
+        self.clnt_data_offset = 0
         pass
 
-    def get_encoding_isn(self) -> int:
+    def get_encoding_offset(self) -> int:
         """Generates and returns local ISN as stego-key for encoding
+
+        the lowest byte will contain the data offset. 0-255
 
         Returns:
             int: local ISN / ciphertext offset-key
         """
-        pass
+        serv_isn = random.getrandbits(32)
+        self.serv_data_offset = serv_isn & (0xff << 8) >> 8 # get lowest significant byte
+        return int(serv_isn)
 
-    def set_decoding_isn(self, isn: int) -> None:
+    def set_decoding_offset(self, isn: int) -> None:
         """Sets the connecting client's ISN as stego-key for decoding after TCP HS
 
         Args:
             isn (int): connecting client's ISN
         """
-        self.clnt_isn = isn
+        self.clnt_data_offset = isn & (0xff << 8) >> 8 # Get lowest significant byte
 
-    def encrypt(self, plaintext: str) -> bytes:
-        """Encodes outgoing message
+    def stegoencode(self, message: str) -> (bytes, int):
+        """Embed message in random chain of bits
 
         Args:
-            plaintext (str): Message to encode
+            message (int): the 32 bit integer from the IP ID Header Field which contains
+            the length of the stegotext
+
+        Returns
+            (bytes, int): Tuple with the bytes chain, and the corresponding IP ID field value with the length
+        """
+        #Encrypt message
+        ciphertext = self.encrypt(message)
+
+        # Get length
+        message_length = len(ciphertext)
+
+        # Check if length is larger than 255 (max int for 1 byte)
+        if message_length > 255:
+            raise Exception("Message too long!")
+
+        # Generate random bytes at from 1-2 times the length of the message
+        size = random.randint(1 * message_length, 2 * message_length) + self.serv_data_offset
+        chain = random.randbytes(size)
+
+        # Embed message starting at offset
+        stegotext = chain[0:self.serv_data_offset] + ciphertext + chain[self.serv_data_offset + message_length:]
+
+        ipid = random.randbytes(3) + message_length.to_bytes(1, sys.byteorder)
+        return (stegotext, ipid)
+
+    def stegodecode(self, stegotext: bytes, ipid: int) -> str:
+        """Steganalysis. Retrieve message embedded in random data
+
+        Args:
+            stegotext (bytes): The TCP payload that has an embedded message
+
+            ipid (int): The 32 bit integer from the IP ID Header Field which contains
+            the length of the stegotext
 
         Returns:
-            bytes: Raw bytes with encoded message at the offset
+            str: The plaintext
+        """
+        # Get th e length from IP ID
+        length = ipid & (0xff << 8) >> 8 # Get the lowest (rightmost) byte from the ipid field
+
+        # Get encrypted message from stegotext
+        ciphertext = stegotext[self.clnt_data_offset:self.clnt_data_offset+length]
+
+        # Decrypt message
+        plaintext = self.decrypt(ciphertext)
+
+        return plaintext
+
+    def encrypt(self, plaintext: str) -> bytes:
+        """Encrypts outgoing message
+
+        Args:
+            plaintext (str): Message to encrypt
+
+        Returns:
+            bytes: Bytes ciphertext
         """
         # generate salt every time
         salt = Random.new().read(self.slt_size)
@@ -74,7 +134,7 @@ class Stegocoder:
         return ciphertext
 
     def decrypt(self, ciphertext: bytes) -> str:
-        """Decodes incoming message using key
+        """Decrypts ciphertext
 
         Args:
             ciphertext (bytes): Data yet to be decoded
