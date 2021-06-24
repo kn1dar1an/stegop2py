@@ -1,4 +1,4 @@
-# stegop2p
+# stegop2py
 
 This is a small program that creates a Peer-to-peer network with a single host which allows both parties to send
 messages to each other.
@@ -16,11 +16,11 @@ This implementation handles TCP 3WHS-s manually since raw sockets must be used t
 
 ### Prerequisites
 
-This project was developed with Python 3.9.5
+This project was developed with Python 3.9.5 on linux5.10
 
 The following libraries must be installed:
-    - scapy: Packet forging library
-    - pycryptodome: fork of the dead pycrypto library that is not being maintained 
+- scapy: Packet forging library
+- pycryptodome: fork of the dead pycrypto library that is not being maintained 
 
 Due to Linux kernel sending RST TCP segments when no active TCP socket is bound to the port in question, a small "hack"
 fixes this issue:
@@ -34,7 +34,6 @@ The port number should also be added to the firewall whitelist
 
 #### Note:
 Since raw sockets are used, the program must run as superuser
-_____________
 
 ```
 # python ./stegop2p.py <serving address> <initial target host address>
