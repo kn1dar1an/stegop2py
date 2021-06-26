@@ -162,10 +162,10 @@ class Connection(Thread):
 
         elif synack[IP].src == clnt_addr and synack[TCP].sport == clnt_port and synack[TCP].flags == "SA":
             self.serv_seq += 1
-            self.clnt_seq += synack[TCP].seq
+            self.clnt_seq += synack[TCP].seq + 1
             self.stegocoder.set_decoding_offset(synack[TCP].seq)
             ack = IP(src=self.serv_addr, dst=clnt_addr) / TCP(sport=self.serv_port, dport=clnt_port, flags="A",
-                                                              seq=self.serv_seq, ack=self.clnt_seq + 1)
+                                                              seq=self.serv_seq, ack=self.clnt_seq)
             # Send on Layer 3
             send(ack)
         else:
