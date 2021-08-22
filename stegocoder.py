@@ -9,16 +9,17 @@ class Stegocoder:
     """ Class that contains the stego-keys (ISNs) and functions used for
     embedding extracting messages from raw ciphertext from packets.
 
-    The messages are first encrypted with a secret key. Then, embedded in a chain of random bits
-    at an offset (the stego-key). The stego-key is communicated to the other party via ISNs
+    The messages are first encrypted with a secret key. Then, embedded in a chain of random
+    bits at an offset (the stego-key). The stego-key is communicated to the other party via 
+    ISNs.
 
     This implementation is a PoC of steganography in networking environments. In the future,
     it would be great to implement TLS1.3 to send the chain of random bits with the embedded
     message as ciphertext sent via TCP is unencrypted.
 
-    To be able to decode the message, the stego-text will be stored in the
-    IP ID field for these purposes, and the offset in the ISN of the TCP connection. THe offset won't change
-    until restarting
+    To be able to decode the message, the stego-text will be stored in the IP ID field for
+    these purposes, and the offset in the ISN of the TCP connection. THe offset won't change
+    until restarting.
     """
 
     def __init__(self, password: str):
@@ -37,29 +38,30 @@ class Stegocoder:
         The lowest byte will contain the data offset. 0-255
 
         Returns:
-            int: local ISN / ciphertext offset-key
+            int: local ISN / ciphertext offset-key.
         """
         serv_isn = random.getrandbits(32)
         self.serv_data_offset = serv_isn & (0xff << 8) >> 8  # get lowest significant byte
         return int(serv_isn)
 
     def set_decoding_offset(self, isn: int) -> None:
-        """Sets the connecting client's ISN as stego-key for decoding after TCP HS
+        """Sets the connecting client's ISN as stego-key for decoding after TCP handshake.
 
         Args:
-            isn (int): connecting client's ISN
+            isn (int): connecting client's ISN.
         """
         self.clnt_data_offset = isn & (0xff << 8) >> 8  # Get lowest significant byte
 
     def stegoencode(self, plaintext: str) -> (bytes, int):
-        """Embed message in random chain of bits
+        """Embed message in random chain of bits.
 
         Args:
             message (int): the 32 bit integer from the IP ID Header Field which contains
-            the length of the stegotext
+            the length of the stegotext.
 
         Returns
-            (bytes, int): Tuple with the bytes chain, and the corresponding IP ID field value with the length
+            (bytes, int): Tuple with the bytes chain, and the corresponding IP ID field 
+                        value with the length.
         """
         # Encrypt message
         ciphertext = self.encrypt(plaintext)
@@ -82,16 +84,16 @@ class Stegocoder:
         return (stegotext, int.from_bytes(ipid, 'big'))
 
     def stegodecode(self, stegotext: bytes, ipid: int) -> str:
-        """Steganalysis. Retrieve message embedded in random data
+        """Steganalysis. Retrieve message embedded in random data.
 
         Args:
-            stegotext (bytes): The TCP payload that has an embedded message
+            stegotext (bytes): The TCP payload that has an embedded message.
 
             ipid (int): The 32 bit integer from the IP ID Header Field which contains
-            the length of the stegotext
+            the length of the stegotext.
 
         Returns:
-            str: The plaintext
+            str: The plaintext.
         """
 
         # Get th e length from IP ID
@@ -106,13 +108,13 @@ class Stegocoder:
         return plaintext
 
     def encrypt(self, plaintext: str) -> bytes:
-        """Encrypts outgoing message
+        """Encrypts outgoing message into ciphertext.
 
         Args:
-            plaintext (str): Message to encrypt
+            plaintext (str): Message to encrypt.
 
         Returns:
-            bytes: Bytes ciphertext
+            bytes: Bytes ciphertext.
         """
 
         # generate salt every time
@@ -135,19 +137,20 @@ class Stegocoder:
         return ciphertext
 
     def decrypt(self, ciphertext: bytes) -> str:
-        """Decrypts ciphertext
+        """Decrypts plaintext from ciphertext.
 
         Args:
-            ciphertext (bytes): Data yet to be decoded
+            ciphertext (bytes): Data yet to be decoded.
 
         Returns:
-            str: Decoded message
+            str: Decoded message.
         """
         # Get salt from ciphertext
         salt = ciphertext[0:self.slt_size]
 
 
-        # Derive a key based on password and received salt for generating a nonce/iv and aes key for decryption
+        # Derive a key based on password and received salt for generating a nonce/iv and 
+        # AES key for decryption
         derived_key = PBKDF2(password=self.password, salt=salt, dkLen=self.nce_size + self.key_size)
 
         # Derive nonce/iv and key from PBKDF2 algo

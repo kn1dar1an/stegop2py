@@ -7,7 +7,18 @@ from typing import Callable
 
 
 class WindowManager(Thread):
+    """Class that manages the console window; handles user input for sending messages and
+    displaying incomming messages. Runs on a separate thread to not block other operations 
+    / loops.
+    """
     def __init__(self, message_queue: queue.Queue, input_callback: Callable):
+        """Class constructor.
+
+        Args:
+            message_queue (queue.Queue): Queue containing messages yet to be displayed.
+            input_callback (Callable): Callback function called when a user inputs a new
+                        message to send.
+        """
         super(WindowManager, self).__init__()
         self.screen: curses.window
         self.scr_x = 0
@@ -21,6 +32,12 @@ class WindowManager(Thread):
         self.input_callback = input_callback
 
     def run(self):
+        """Thread start function that contains the main loop.
+        Loop checks for incomming messages, and if any keys are pressed, if it corresponds
+        to a valid character it is added to a buffer, if it is the backspace key the last
+        character in the buffer is removed, if enter key is pressed, the input_callback
+        callback is called passing the buffer string as parameter.
+        """
         self.running = True
         self.screen = curses.initscr()
 
@@ -63,6 +80,9 @@ class WindowManager(Thread):
             sleep(0.001)  # Sleep for 1 ms
 
     def show_messages(self):
+        """Function that displays messages stored in the internal string array to the 
+        screen.
+        """
         for i in range(0, len(self.display_messages)):
             if i > self.scr_y:
                 break
@@ -88,10 +108,14 @@ class WindowManager(Thread):
         self.screen.refresh()
 
     def print(self, message: str):
+        """Helper function for manually printing system messages.
+        """
         dm = ('system', message)
         self.display_messages.insert(0, dm)
 
     def stop(self):
+        """Stops loop and resets terminal to default settings.
+        """
         self.running = False
         self.screen.keypad(False)
         curses.nocbreak()

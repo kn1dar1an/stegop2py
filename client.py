@@ -7,11 +7,11 @@ from window_manager import WindowManager
 
 class Client:
     def __init__(self, password: str, lcl_addr: str, rmt_addr: str):
-        """Class constructor
+        """Class constructor.
 
         Args:
-            lcl_addr (str): Address to listen to / Serve on
-            rmt_addr (str): Host's destination address
+            lcl_addr (str): Address to listen to / Serve on.
+            rmt_addr (str): Host's destination address.
         """
         self.running = False
         self.lcl_addr = lcl_addr
@@ -30,8 +30,8 @@ class Client:
         self.setup(rmt_addr)
 
     def setup(self, rmt_addr: str) -> None:
-        """Setup necessary stuff
-        Try to connect to host, if not successful listen for connections
+        """Setup necessary stuff.
+        Try to connect to host, if not successful listen for connections.
         """
         # The host on the other end should also be listening on the same port
         if not self.connection.connect(rmt_addr, self.serv_port):
@@ -43,7 +43,7 @@ class Client:
         self.window_manager.start()
 
     def start(self) -> None:
-        """Starts listener
+        """Starts socket instance (Connection class) and main client loop.
         """
         # Start connection thread
         self.connection.start()
@@ -55,14 +55,20 @@ class Client:
         return
 
     def stop(self):
-        """Stop and close everything
+        """Stop and close everything.
         """
         self.running = False
         self.window_manager.stop()
         self.connection.stop()
 
     def input_callback(self, outgoing_message):
+        """Callback for managing user input.
+        Queues a message for encrypting, embedding and sending.
+        """
         self.connection.queue_outgoing(outgoing_message)
 
     def print_callback(self, message: str):
+        """Callback for printing incomming, exctracted and decrypted
+        messages.
+        """
         self.window_manager.print(message)
